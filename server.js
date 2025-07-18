@@ -1,69 +1,75 @@
 import express from 'express';
 import cors from 'cors';
-import Replicate from 'replicate'; // ✅ Fixed import, works with type: module
+import fetch from 'node-fetch'; // npm install node-fetch@3
 
 const app = express();
 const port = process.env.PORT || 10000;
+const replicate_api_token = 'rnd_89eRpzzTKeMYQETE5npl4M1uMWlP';
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// ✅ Direct Token
-const replicate = new Replicate({
-  auth: 'rnd_89eRpzzTKeMYQETE5npl4M1uMWlP',
-  userAgent: 'ai-image-proxy/1.0.0'
-});
-
-// 🧪 Health Check
 app.get('/', (req, res) => {
   res.json({
     status: 'running',
-    message: 'AI Image Proxy Service is live',
+    message: 'AI Image Proxy Service',
     endpoints: {
       generate: 'POST /generate'
     }
   });
 });
 
-// 🖼️ Generate Image
 app.post('/generate', async (req, res) => {
+  const { prompt } = req.body;
+
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+
   try {
-    const { prompt } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required' });
-    }
-
-    const model = "stability-ai/stable-diffusion-xl:1f0df7180c9e9ebcd61cfc6d74c4ea9f63e6afbf011b5c342a150858eaa7f1c7";
-
-    const output = await replicate.run(model, {
-      input: {
-        prompt,
-        width: 1024,
-        height: 1024,
-        num_outputs: 1,
-        refine: "expert_ensemble_refiner"
-      }
+    const response = await fetch('https://api.replicate.com/v1/predictions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${replicate_api_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        version: '1f0df7180c9e9ebcd61cfc6d74c4ea9f63e6afbf011b5c342a150858eaa7f1c7',
+        input: {
+          prompt,
+          width: 1024,
+          height: 1024,
+          num_outputs: 1,
+          refine: 'expert_ensemble_refiner'
+        }
+      })
     });
+
+    const prediction = await response.json();
+
+    // Poll until generation completes
+    let result;
+    while (!result || result.status === 'starting' || result.status === 'processing') {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const poll = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+        headers: {
+          'Authorization': `Token ${replicate_api_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      result = await poll.json();
+    }
 
     res.json({
       success: true,
-      imageUrl: output[0],
-      model,
-      prompt
+      imageUrl: result.output[0]
     });
 
-  } catch (error) {
-    console.error('❌ Generation error:', error);
-    res.status(500).json({
-      error: 'Failed to generate image',
-      details: error.message
-    });
+  } catch (err) {
+    res.status(500).json({ error: 'Generation failed', message: err.message });
   }
 });
 
-// 🚀 Start Server
 app.listen(port, () => {
-  console.log(`✅ Server is running on port ${port}`);
+  console.log(`✅ Server running on port ${port}`);
 });
