@@ -1,10 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import { Replicate } from 'replicate';
-
-// Initialize environment variables
-dotenv.config();
+import Replicate from 'replicate'; // ✅ Fixed import, works with type: module
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -13,30 +9,24 @@ const port = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-// Verify Replicate token is available
-if (!process.env.REPLICATE_API_TOKEN) {
-  console.error('ERROR: REPLICATE_API_TOKEN environment variable is missing');
-  process.exit(1);
-}
-
-// Initialize Replicate client
+// ✅ Direct Token
 const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
+  auth: 'rnd_89eRpzzTKeMYQETE5npl4M1uMWlP',
   userAgent: 'ai-image-proxy/1.0.0'
 });
 
-// Test route
+// 🧪 Health Check
 app.get('/', (req, res) => {
   res.json({
     status: 'running',
-    message: 'AI Image Proxy Service',
+    message: 'AI Image Proxy Service is live',
     endpoints: {
       generate: 'POST /generate'
     }
   });
 });
 
-// Image generation endpoint
+// 🖼️ Generate Image
 app.post('/generate', async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -46,7 +36,7 @@ app.post('/generate', async (req, res) => {
     }
 
     const model = "stability-ai/stable-diffusion-xl:1f0df7180c9e9ebcd61cfc6d74c4ea9f63e6afbf011b5c342a150858eaa7f1c7";
-    
+
     const output = await replicate.run(model, {
       input: {
         prompt,
@@ -57,24 +47,23 @@ app.post('/generate', async (req, res) => {
       }
     });
 
-    res.json({ 
+    res.json({
       success: true,
       imageUrl: output[0],
       model,
-      prompt 
+      prompt
     });
 
   } catch (error) {
-    console.error('Generation error:', error);
-    res.status(500).json({ 
+    console.error('❌ Generation error:', error);
+    res.status(500).json({
       error: 'Failed to generate image',
-      details: error.message 
+      details: error.message
     });
   }
 });
 
-// Start server
+// 🚀 Start Server
 app.listen(port, () => {
-  console.log(`✅ Server running on port ${port}`);
-  console.log(`🔗 Available at: http://localhost:${port}`);
+  console.log(`✅ Server is running on port ${port}`);
 });
