@@ -3,7 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const Replicate = require('replicate');
 
-dotenv.config(); // Load .env
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -11,23 +11,17 @@ const port = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-// Use Replicate API with your key
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY,
 });
 
-// POST /api/generate
 app.post('/api/generate', async (req, res) => {
   try {
     const { prompt } = req.body;
+    if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required' });
-    }
-
-    // ✅ Correct model format with version ID
     const output = await replicate.run(
-"stability-ai/stable-diffusion-xl:1f0df7180c9e9ebcd61cfc6d74c4ea9f63e6afbf011b5c342a150858eaa7f1c7"
+      "stability-ai/sdxl:latest", // or stable-diffusion:latest
       {
         input: {
           prompt: prompt,
@@ -38,16 +32,16 @@ app.post('/api/generate', async (req, res) => {
     );
 
     if (!output || !Array.isArray(output) || !output[0]) {
-      throw new Error('No image returned from API');
+      throw new Error('No image returned');
     }
 
     res.json({ imageUrl: output[0] });
   } catch (err) {
-    console.error('API Error:', err.message);
-    res.status(500).json({ error: 'Failed to generate image', message: err.message });
+    console.error(err.message);
+    res.status(500).json({ error: 'Image generation failed', message: err.message });
   }
 });
 
 app.listen(port, () => {
-  console.log(`✅ Server running at http://localhost:${port}`);
+  console.log(`✅ Server running on port ${port}`);
 });
