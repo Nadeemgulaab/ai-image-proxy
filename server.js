@@ -11,19 +11,23 @@ const port = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
+// Use Replicate API with your key
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY,
 });
 
+// POST /api/generate
 app.post('/api/generate', async (req, res) => {
   try {
     const { prompt } = req.body;
+
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
+    // ✅ Correct model format with version ID
     const output = await replicate.run(
-      "stability-ai/sdxl:latest",
+      "stability-ai/stable-diffusion-xl:1f0df7180c9e9ebcd61cfc6d74c4ea9f63e6afbf011b5c342a150858eaa7f1c7",
       {
         input: {
           prompt: prompt,
@@ -34,16 +38,16 @@ app.post('/api/generate', async (req, res) => {
     );
 
     if (!output || !Array.isArray(output) || !output[0]) {
-      throw new Error('Image not generated');
+      throw new Error('No image returned from API');
     }
 
     res.json({ imageUrl: output[0] });
   } catch (err) {
-    console.error('Error:', err.message);
+    console.error('API Error:', err.message);
     res.status(500).json({ error: 'Failed to generate image', message: err.message });
   }
 });
 
 app.listen(port, () => {
-  console.log(`✅ Server running on port ${port}`);
+  console.log(`✅ Server running at http://localhost:${port}`);
 });
