@@ -1,79 +1,52 @@
-require('dotenv').config();
 const express = require('express');
-const axios = require('axios');
-const rateLimit = require('express-rate-limit');
 const cors = require('cors');
+const dotenv = require('dotenv');
+const Replicate = require('replicate');
+
+dotenv.config(); // Load .env file
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const port = process.env.PORT || 10000;
 
-// Rate limiting (100 requests per 15 minutes)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests, please try again later'
-});
-
-// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(limiter);
 
-// Proxy endpoint for Replicate API
+const replicate = new Replicate({
+  auth: process.env.REPLICATE_API_KEY,
+});
+
+// Image Generation Endpoint
 app.post('/api/generate', async (req, res) => {
   try {
     const { prompt } = req.body;
-    
-    const response = await axios.post(
-      'https://api.replicate.com/v1/predictions',
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    // Use the Replicate model (e.g., Stable Diffusion)
+    const output = await replicate.run(
+      "stability-ai/sdxl:latest", // You can change model here
       {
-        version: "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
-        input: { prompt }
-      },
-      {
-        headers: {
-          'Authorization': `Token ${process.env.REPLICATE_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
+        input: {
+          prompt: prompt,
+          width: 1024,
+          height: 1024,
+        },
       }
     );
 
-    const predictionId = response.data.id;
-    let prediction;
-    let attempts = 0;
-    const maxAttempts = 30;
-
-    // Poll for results
-    while (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const statusResponse = await axios.get(
-        `https://api.replicate.com/v1/predictions/${predictionId}`,
-        {
-          headers: { 'Authorization': `Token r8_EAzVBmrrhHMpsklD3ofB65BIkPMJIJA3iCc4E` }
-        }
-      );
-      
-      prediction = statusResponse.data;
-      if (prediction.status === 'succeeded') {
-        return res.json({ imageUrl: prediction.output[0] });
-      } else if (prediction.status === 'failed') {
-        throw new Error("Generation failed");
-      }
-      attempts++;
+    if (!output || !Array.isArray(output) || !output[0]) {
+      throw new Error('Image not generated');
     }
-    throw new Error("Timeout - try again later");
 
-  } catch (error) {
-    console.error("Proxy error:", error.message);
-    res.status(500).json({ error: error.message });
+    res.json({ imageUrl: output[0] });
+  } catch (err) {
+    console.error('Error:', err.message);
+    res.status(500).json({ error: 'Failed to generate image', message: err.message });
   }
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
