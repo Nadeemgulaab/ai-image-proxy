@@ -27,7 +27,7 @@ app.post('/api/generate', async (req, res) => {
 
     // ✅ Correct model format with version ID
     const output = await replicate.run(
-      "stability-ai/stable-diffusion-xl:1f0df7180c9e9ebcd61cfc6d74c4ea9f63e6afbf011b5c342a150858eaa7f1c7",
+"stability-ai/stable-diffusion-xl:1f0df7180c9e9ebcd61cfc6d74c4ea9f63e6afbf011b5c342a150858eaa7f1c7"
       {
         input: {
           prompt: prompt,
