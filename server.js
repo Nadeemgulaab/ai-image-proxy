@@ -1,54 +1,77 @@
-const express = require('express');
-const cors = require('cors');
-const fetch = require('node-fetch');
 require('dotenv').config();
+const express = require('express');
+const axios = require('axios');
+const rateLimit = require('express-rate-limit');
+const cors = require('cors');
 
 const app = express();
+const PORT = process.env.PORT || 10000;
+
+// Rate limiting (100 requests per 15 minutes)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many requests, please try again later'
+});
+
+// Middleware
 app.use(cors());
 app.use(express.json());
+app.use(limiter);
 
-const PORT = process.env.PORT || 3000;
-const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
-
-async function generateImage(prompt) {
-  const response = await fetch('https://api.replicate.com/v1/predictions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${REPLICATE_API_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      version: 'a9758cb0429f1f352768d3d0c0f8ee5d1f1b24e70e63cfc8cfe9a1b6c6d50e2b',
-      input: { prompt },
-    }),
-  });
-  let data = await response.json();
-
-  while (data.status !== 'succeeded' && data.status !== 'failed') {
-    await new Promise((r) => setTimeout(r, 1500));
-    const res = await fetch(`https://api.replicate.com/v1/predictions/${data.id}`, {
-      headers: { Authorization: `Token ${REPLICATE_API_TOKEN}` },
-    });
-    data = await res.json();
-  }
-
-  if (data.status === 'succeeded') {
-    return data.output[0];
-  } else {
-    throw new Error('Generation failed');
-  }
-}
-
-app.post('/generate', async (req, res) => {
+// Proxy endpoint for Replicate API
+app.post('/api/generate', async (req, res) => {
   try {
     const { prompt } = req.body;
-    if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
+    
+    const response = await axios.post(
+      'https://api.replicate.com/v1/predictions',
+      {
+        version: "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
+        input: { prompt }
+      },
+      {
+        headers: {
+          'Authorization': `Token ${process.env.REPLICATE_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
-    const imageUrl = await generateImage(prompt);
-    res.json({ image: imageUrl });
+    const predictionId = response.data.id;
+    let prediction;
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    // Poll for results
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const statusResponse = await axios.get(
+        `https://api.replicate.com/v1/predictions/${predictionId}`,
+        {
+          headers: { 'Authorization': `Token r8_EAzVBmrrhHMpsklD3ofB65BIkPMJIJA3iCc4E` }
+        }
+      );
+      
+      prediction = statusResponse.data;
+      if (prediction.status === 'succeeded') {
+        return res.json({ imageUrl: prediction.output[0] });
+      } else if (prediction.status === 'failed') {
+        throw new Error("Generation failed");
+      }
+      attempts++;
+    }
+    throw new Error("Timeout - try again later");
+
   } catch (error) {
-    res.status(500).json({ error: error.message || 'Error generating image' });
+    console.error("Proxy error:", error.message);
+    res.status(500).json({ error: error.message });
   }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
 });
 
 app.listen(PORT, () => {
