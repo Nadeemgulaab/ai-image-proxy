@@ -3,7 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const Replicate = require('replicate');
 
-dotenv.config(); // Load .env file
+dotenv.config(); // Load .env
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -15,24 +15,21 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY,
 });
 
-// Image Generation Endpoint
 app.post('/api/generate', async (req, res) => {
   try {
     const { prompt } = req.body;
-
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    // Use the Replicate model (e.g., Stable Diffusion)
     const output = await replicate.run(
-      "stability-ai/sdxl:latest", // You can change model here
+      "stability-ai/sdxl:latest",
       {
         input: {
           prompt: prompt,
           width: 1024,
-          height: 1024,
-        },
+          height: 1024
+        }
       }
     );
 
@@ -48,5 +45,5 @@ app.post('/api/generate', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`✅ Server running on port ${port}`);
 });
