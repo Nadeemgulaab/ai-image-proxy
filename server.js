@@ -21,13 +21,13 @@ app.post('/api/generate', async (req, res) => {
     if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
     const output = await replicate.run(
-      "stability-ai/sdxl:latest", // or stable-diffusion:latest
+      "stability-ai/stable-diffusion-xl:1f0df7180c9e9ebcd61cfc6d74c4ea9f63e6afbf011b5c342a150858eaa7f1c7",
       {
         input: {
           prompt: prompt,
           width: 1024,
-          height: 1024
-        }
+          height: 1024,
+        },
       }
     );
 
